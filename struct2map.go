@@ -3,7 +3,6 @@ package mapstruct
 import (
 	"reflect"
 	"strconv"
-	"strings"
 )
 
 func Struct2Map(s interface{}) map[string]interface{} {
@@ -39,58 +38,66 @@ func Struct2MapTag(s interface{}, tagName string) map[string]interface{} {
 
 		var name string
 		var option string
-		tag := ft.Tag.Get(tagName)
-		if tag != "" {
-			ts := strings.Split(tag, ",")
-			if len(ts) == 1 {
-				name = ts[0]
-			} else if len(ts) > 1 {
-				name = ts[0]
-				option = ts[1]
+
+		name, option = parseTag(ft.Tag.Get(tagName))
+
+		if name == "-" {
+			continue // ignore "-"
+		}
+
+		if name == "" {
+			name = ft.Name // use field name
+		}
+
+		if option == "omitempty" {
+			if isEmpty(&fv) {
+				continue // skip empty field
 			}
-			if name == "-" {
-				continue // skip this field
+		}
+
+		// ft.Anonymous means embedded field
+		if ft.Anonymous {
+			if fv.Kind() == reflect.Ptr && fv.IsNil() {
+				continue // nil
 			}
-			if name == "" {
-				name = strings.ToLower(ft.Name)
-			}
-			if option == "omitempty" {
-				if isEmpty(&fv) {
-					continue // skip empty field
+
+			if (fv.Kind() == reflect.Struct) ||
+				(fv.Kind() == reflect.Ptr && fv.Elem().Kind() == reflect.Struct) {
+
+				// embedded struct
+				embedded := Struct2MapTag(fv.Interface(), tagName)
+
+				for embName, embValue := range embedded {
+					m[embName] = embValue
 				}
 			}
-		} else {
-			name = strings.ToLower(ft.Name)
-		}
-
-		if ft.Anonymous && fv.Kind() == reflect.Ptr && fv.IsNil() {
 			continue
 		}
-		if (ft.Anonymous && fv.Kind() == reflect.Struct) ||
-			(ft.Anonymous && fv.Kind() == reflect.Ptr && fv.Elem().Kind() == reflect.Struct) {
 
-			// embedded struct
-			embedded := Struct2MapTag(fv.Interface(), tagName)
-			for embName, embValue := range embedded {
-				m[embName] = embValue
+		if option == "string" {
+			s := toString(fv)
+			if s != nil {
+				m[name] = s
+				continue
 			}
-		} else if option == "string" {
-			kind := fv.Kind()
-			if kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64 {
-				m[name] = strconv.FormatInt(fv.Int(), 10)
-			} else if kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64 {
-				m[name] = strconv.FormatUint(fv.Uint(), 10)
-			} else if kind == reflect.Float32 || kind == reflect.Float64 {
-				m[name] = strconv.FormatFloat(fv.Float(), 'f', 2, 64)
-			} else {
-				m[name] = fv.Interface()
-			}
-		} else {
-			m[name] = fv.Interface()
 		}
+
+		m[name] = fv.Interface()
 	}
 
 	return m
+}
+
+func toString(fv reflect.Value) interface{} {
+	kind := fv.Kind()
+	if kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64 {
+		return strconv.FormatInt(fv.Int(), 10)
+	} else if kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64 {
+		return strconv.FormatUint(fv.Uint(), 10)
+	} else if kind == reflect.Float32 || kind == reflect.Float64 {
+		return strconv.FormatFloat(fv.Float(), 'f', 2, 64)
+	}
+	return nil
 }
 
 func isEmpty(v *reflect.Value) bool {
