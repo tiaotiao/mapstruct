@@ -59,11 +59,12 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 
 		if name == "" {
 			// tag name is not set, use field name
-			name = strings.ToLower(f.Name)
+			name = f.Name
 		}
 
-		// check tag option
+		// value from map
 		val, ok := vals[name]
+
 		if !ok { // value not found
 			if option == "required" {
 				return fmt.Errorf("'%v' is required", name)
@@ -76,13 +77,15 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 			}
 		}
 
+		// assign or convert value to field
+		if assignToField(val, name, fv) == nil {
+			continue
+		}
+
 		switch v := val.(type) {
 		case string:
-			s := strings.TrimSpace(v)
-			if len(s) == 0 && option == "required" {
-				return fmt.Errorf("value of required argument can't not be empty")
-			}
 			// parse string to value
+			s := strings.TrimSpace(v)
 			err = convertStringToValue(s, f.Name, fv, ft.Kind())
 
 		case json.RawMessage:
@@ -90,21 +93,8 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 			err = convertJsonToValue(v, name, fv)
 
 		default:
-			// assign or convert value to field
-			vv := reflect.ValueOf(val)
-			vt := reflect.TypeOf(val)
 
-			if vt.AssignableTo(ft) {
-				fv.Set(vv)
-				continue
-			}
-
-			if vt.ConvertibleTo(ft) {
-				fv.Set(vv.Convert(ft))
-				continue
-			}
-
-			err = fmt.Errorf("value type not match: field=%v(%v) value=%v(%v)", f.Name, ft.Kind(), val, vt.Kind())
+			err = fmt.Errorf("value type support: field=%v(%v) value=%v", f.Name, ft.Kind(), val)
 		}
 
 		if err != nil {
@@ -115,6 +105,23 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 	}
 
 	return nil
+}
+
+func assignToField(val interface{}, name string, fv reflect.Value) error {
+	vv := reflect.ValueOf(val)
+	vt := reflect.TypeOf(val)
+	ft := fv.Type()
+
+	// assign or convert value to field
+	if vt.AssignableTo(ft) {
+		fv.Set(vv)
+		return nil
+	}
+	if vt.ConvertibleTo(ft) {
+		fv.Set(vv.Convert(ft))
+		return nil
+	}
+	return fmt.Errorf("can not assign: %v(%v) value=%v(%v)", name, ft.Kind(), val, vt.Kind())
 }
 
 func convertJsonToValue(data json.RawMessage, name string, fv reflect.Value) error {
@@ -140,6 +147,10 @@ func convertJsonToValue(data json.RawMessage, name string, fv reflect.Value) err
 func convertStringToValue(s string, name string, fv reflect.Value, kind reflect.Kind) error {
 	if !fv.CanAddr() {
 		return fmt.Errorf("can not addr: %v", name)
+	}
+
+	if assignToField(s, name, fv) == nil {
+		return nil
 	}
 
 	if kind == reflect.String {
