@@ -64,6 +64,9 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 
 		// value from map
 		val, ok := vals[name]
+		if !ok {
+			val, ok = vals[strings.ToLower(name)]
+		}
 
 		if !ok { // value not found
 			if option == "required" {
