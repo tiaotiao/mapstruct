@@ -78,10 +78,10 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 			}
 		}
 
-		err = convert(val, name, fv)
+		err = convert(val, fv)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("field %v(%v) error: %v", name, fv.Type().Kind(), err.Error())
 		}
 
 		continue
@@ -97,12 +97,12 @@ func Convert(dst interface{}, val interface{}) error {
 	if fv.Type().Kind() != reflect.Ptr {
 		return fmt.Errorf("dst must be a pointer")
 	}
-	return convert(val, "", fv)
+	return convert(val, fv)
 }
 
-func convert(val interface{}, name string, fv reflect.Value) (err error) {
+func convert(val interface{}, fv reflect.Value) (err error) {
 	// assign or convert value to field
-	if assignToField(val, name, fv) == nil {
+	if assignToField(val, fv) == nil {
 		return nil
 	}
 
@@ -110,20 +110,20 @@ func convert(val interface{}, name string, fv reflect.Value) (err error) {
 	case string:
 		// parse string to value
 		s := strings.TrimSpace(v)
-		err = convertStringToValue(s, "", fv, fv.Type().Kind())
+		err = convertStringToValue(s, fv, fv.Type().Kind())
 
 	case json.RawMessage:
 		// unmarshal json
-		err = convertJsonToValue(v, "", fv)
+		err = convertJsonToValue(v, fv)
 
 	default:
-		err = fmt.Errorf("value type support: field=%v(%v) value=%v", name, fv.Type().Kind(), val)
+		err = fmt.Errorf("value type is not supported: value=%v", val)
 	}
 
 	return err
 }
 
-func assignToField(val interface{}, name string, fv reflect.Value) error {
+func assignToField(val interface{}, fv reflect.Value) error {
 	vv := reflect.ValueOf(val)
 	vt := reflect.TypeOf(val)
 	ft := fv.Type()
@@ -137,10 +137,10 @@ func assignToField(val interface{}, name string, fv reflect.Value) error {
 		fv.Set(vv.Convert(ft))
 		return nil
 	}
-	return fmt.Errorf("can not assign: %v(%v) value=%v(%v)", name, ft.Kind(), val, vt.Kind())
+	return fmt.Errorf("can not assign: value=%v(%v)", val, vt.Kind())
 }
 
-func convertJsonToValue(data json.RawMessage, name string, fv reflect.Value) error {
+func convertJsonToValue(data json.RawMessage, fv reflect.Value) error {
 	var err error
 
 	if fv.Kind() == reflect.Ptr {
@@ -154,18 +154,18 @@ func convertJsonToValue(data json.RawMessage, name string, fv reflect.Value) err
 	err = json.Unmarshal(data, fv.Interface())
 
 	if err != nil {
-		return fmt.Errorf("invalid json '%v': %v, %v", name, err.Error(), string(data))
+		return fmt.Errorf("invalid json: %v, %v", err.Error(), string(data))
 	}
 
 	return nil
 }
 
-func convertStringToValue(s string, name string, fv reflect.Value, kind reflect.Kind) error {
+func convertStringToValue(s string, fv reflect.Value, kind reflect.Kind) error {
 	if !fv.CanAddr() {
-		return fmt.Errorf("can not addr: %v", name)
+		return fmt.Errorf("target can not addr")
 	}
 
-	if assignToField(s, name, fv) == nil {
+	if assignToField(s, fv) == nil {
 		return nil
 	}
 
@@ -175,11 +175,11 @@ func convertStringToValue(s string, name string, fv reflect.Value, kind reflect.
 	}
 
 	if kind == reflect.Slice {
-		return convertStringToSlice(s, name, fv)
+		return convertStringToSlice(s, fv)
 	}
 
 	if kind == reflect.Ptr || kind == reflect.Struct {
-		return convertJsonToValue(json.RawMessage(s), name, fv)
+		return convertJsonToValue(json.RawMessage(s), fv)
 	}
 
 	if kind == reflect.Bool {
@@ -193,7 +193,7 @@ func convertStringToValue(s string, name string, fv reflect.Value, kind reflect.
 		case "0":
 			fv.SetBool(false)
 		default:
-			return fmt.Errorf("invalid bool: %v value=%v", name, s)
+			return fmt.Errorf("invalid bool: value=%v", s)
 		}
 		return nil
 	}
@@ -201,32 +201,32 @@ func convertStringToValue(s string, name string, fv reflect.Value, kind reflect.
 	if reflect.Int <= kind && kind <= reflect.Int64 {
 		i, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid int: %v value=%v", name, s)
+			return fmt.Errorf("invalid int: value=%v", s)
 		}
 		fv.SetInt(i)
 
 	} else if reflect.Uint <= kind && kind <= reflect.Uint64 {
 		i, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid uint: %v value=%v", name, s)
+			return fmt.Errorf("invalid uint: value=%v", s)
 		}
 		fv.SetUint(i)
 
 	} else if reflect.Float32 == kind || kind == reflect.Float64 {
 		i, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			return fmt.Errorf("invalid float: %v value=%v", name, s)
+			return fmt.Errorf("invalid float: value=%v", s)
 		}
 		fv.SetFloat(i)
 
 	} else {
 		// type not support
-		return fmt.Errorf("type not support: %v(%v) value=%v", name, kind.String(), s)
+		return fmt.Errorf("type not support: value=%v", s)
 	}
 	return nil
 }
 
-func convertStringToSlice(s string, name string, fv reflect.Value) error {
+func convertStringToSlice(s string, fv reflect.Value) error {
 	var err error
 	ft := fv.Type()
 	et := ft.Elem()
@@ -237,7 +237,7 @@ func convertStringToSlice(s string, name string, fv reflect.Value) error {
 
 	data := json.RawMessage(s)
 	if data[0] == '[' && data[len(data)-1] == ']' {
-		return convertJsonToValue(data, name, fv)
+		return convertJsonToValue(data, fv)
 	}
 
 	ss := strings.Split(s, ",")
@@ -246,7 +246,7 @@ func convertStringToSlice(s string, name string, fv reflect.Value) error {
 	for _, si := range ss {
 		ev := reflect.New(et).Elem()
 
-		err = convertStringToValue(si, name, ev, et.Kind())
+		err = convertStringToValue(si, ev, et.Kind())
 		if err != nil {
 			return err
 		}
