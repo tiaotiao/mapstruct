@@ -51,35 +51,12 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 		tag := f.Tag.Get(tagName)
 		name, option := parseTag(tag)
 
-		if name == "-" {
-			continue // ignore "-"
-		}
-
 		if name == "" {
 			// tag name is not set, use field name
 			name = f.Name
 		}
 
-		// value from map
-		val, ok := vals[name]
-		if !ok {
-			val, ok = vals[strings.ToLower(name)]
-		}
-
-		if !ok { // value not found
-			if option == "required" {
-				return fmt.Errorf("'%v' is required", name)
-			}
-
-			if len(option) != 0 {
-				val = option // 'option' means 'default value' here
-			} else {
-				continue // ignore it
-			}
-		}
-
-		err = convert(val, fv)
-
+		err = map2Field(vals, fv, name, option)
 		if err != nil {
 			return fmt.Errorf("field %v(%v) error: %v", name, fv.Type().Kind(), err.Error())
 		}
@@ -88,6 +65,43 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 	}
 
 	return nil
+}
+
+func Map2Field(vals map[string]interface{}, dst interface{}, tag string) error {
+	fv := reflect.ValueOf(dst)
+	if fv.Kind() != reflect.Ptr {
+		return fmt.Errorf("dst must be a pointer")
+	}
+
+	name, option := parseTag(tag)
+
+	return map2Field(vals, fv, name, option)
+}
+
+func map2Field(vals map[string]interface{}, fv reflect.Value, name, option string) error {
+	if name == "-" || name == "" {
+		return nil // ignore "-"
+	}
+
+	// value from map
+	val, ok := vals[name]
+	if !ok {
+		val, ok = vals[strings.ToLower(name)]
+	}
+
+	if !ok { // value not found
+		if option == "required" {
+			return fmt.Errorf("'%v' is required", name)
+		}
+
+		if len(option) != 0 {
+			val = option // 'option' means 'default value' here
+		} else {
+			return nil // ignore it
+		}
+	}
+
+	return convert(val, fv)
 }
 
 // Convert varies types of value to a certain type.
