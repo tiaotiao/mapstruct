@@ -34,13 +34,11 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 	}
 
 	var f reflect.StructField
-	var ft reflect.Type
 	var fv reflect.Value
 
 	for i := 0; i < pt.Elem().NumField(); i++ {
 		f = pt.Elem().Field(i)
 		fv = pv.Elem().Field(i)
-		ft = f.Type
 
 		if f.Anonymous {
 			continue
@@ -80,25 +78,7 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 			}
 		}
 
-		// assign or convert value to field
-		if assignToField(val, name, fv) == nil {
-			continue
-		}
-
-		switch v := val.(type) {
-		case string:
-			// parse string to value
-			s := strings.TrimSpace(v)
-			err = convertStringToValue(s, f.Name, fv, ft.Kind())
-
-		case json.RawMessage:
-			// unmarshal json
-			err = convertJsonToValue(v, name, fv)
-
-		default:
-
-			err = fmt.Errorf("value type support: field=%v(%v) value=%v", f.Name, ft.Kind(), val)
-		}
+		err = convert(val, name, fv)
 
 		if err != nil {
 			return err
@@ -108,6 +88,39 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 	}
 
 	return nil
+}
+
+// Convert varies types of value to a certain type.
+// Value can be type of string or json or whatever type which is convertable to the target type.
+func Convert(dst interface{}, val interface{}) error {
+	fv := reflect.ValueOf(dst)
+	if fv.Type().Kind() != reflect.Ptr {
+		return fmt.Errorf("dst must be a pointer")
+	}
+	return convert(val, "", fv)
+}
+
+func convert(val interface{}, name string, fv reflect.Value) (err error) {
+	// assign or convert value to field
+	if assignToField(val, name, fv) == nil {
+		return nil
+	}
+
+	switch v := val.(type) {
+	case string:
+		// parse string to value
+		s := strings.TrimSpace(v)
+		err = convertStringToValue(s, "", fv, fv.Type().Kind())
+
+	case json.RawMessage:
+		// unmarshal json
+		err = convertJsonToValue(v, "", fv)
+
+	default:
+		err = fmt.Errorf("value type support: field=%v(%v) value=%v", name, fv.Type().Kind(), val)
+	}
+
+	return err
 }
 
 func assignToField(val interface{}, name string, fv reflect.Value) error {
