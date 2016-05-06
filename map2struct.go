@@ -2,7 +2,7 @@ package mapstruct
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"reflect"
 	"strconv"
 	"strings"
@@ -19,9 +19,9 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 		e := recover()
 		if e != nil {
 			if v, ok := e.(error); ok {
-				err = fmt.Errorf("Panic: %v", v.Error())
+				err = errors.New("Panic: " + v.Error())
 			} else {
-				err = fmt.Errorf("Panic: %v", e)
+				err = errors.New("Panic: " + reflect.ValueOf(e).String())
 			}
 		}
 	}()
@@ -30,7 +30,8 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 	pv := reflect.ValueOf(dst)
 
 	if pv.Kind() != reflect.Ptr || pv.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("not a pointer of struct")
+		return errors.New("Not a pointer of struct")
+		//return fmt.Errorf("not a pointer of struct")
 	}
 
 	var f reflect.StructField
@@ -58,7 +59,7 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 
 		err = map2Field(vals, fv, name, option)
 		if err != nil {
-			return fmt.Errorf("field %v(%v) error: %v", name, fv.Type().Kind(), err.Error())
+			return errors.New("field " + name + "(" + fv.Type().Kind().String() + ") error: " + err.Error())
 		}
 
 		continue
@@ -70,7 +71,7 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 func Map2Field(vals map[string]interface{}, dst interface{}, tag string) error {
 	fv := reflect.ValueOf(dst)
 	if fv.Kind() != reflect.Ptr {
-		return fmt.Errorf("dst must be a pointer")
+		return errors.New("dst must be a pointer")
 	}
 
 	name, option := parseTag(tag)
@@ -91,7 +92,7 @@ func map2Field(vals map[string]interface{}, fv reflect.Value, name, option strin
 
 	if !ok { // value not found
 		if option == "required" {
-			return fmt.Errorf("'%v' is required", name)
+			return errors.New("'" + name + "' is required")
 		}
 
 		if len(option) != 0 {
@@ -109,7 +110,7 @@ func map2Field(vals map[string]interface{}, fv reflect.Value, name, option strin
 func Convert(dst interface{}, val interface{}) error {
 	fv := reflect.ValueOf(dst)
 	if fv.Type().Kind() != reflect.Ptr {
-		return fmt.Errorf("dst must be a pointer")
+		return errors.New("dst must be a pointer")
 	}
 	return convert(val, fv)
 }
@@ -131,7 +132,7 @@ func convert(val interface{}, fv reflect.Value) (err error) {
 		err = convertJsonToValue(v, fv)
 
 	default:
-		err = fmt.Errorf("value type is not supported: value=%v", val)
+		err = errors.New("value type is not supported: value=" + reflect.ValueOf(val).Kind().String())
 	}
 
 	return err
@@ -151,7 +152,9 @@ func assignToField(val interface{}, fv reflect.Value) error {
 		fv.Set(vv.Convert(ft))
 		return nil
 	}
-	return fmt.Errorf("can not assign: value=%v(%v)", val, vt.Kind())
+	return errors.New("Can not assign: valueKind = " + vt.Kind().String())
+	// Loss of info, below. Is it required or commonly useful? Worth fmt?
+	//return fmt.Errorf("can not assign: value=%v(%v)", val, vt.Kind())
 }
 
 func convertJsonToValue(data json.RawMessage, fv reflect.Value) error {
@@ -168,7 +171,7 @@ func convertJsonToValue(data json.RawMessage, fv reflect.Value) error {
 	err = json.Unmarshal(data, fv.Interface())
 
 	if err != nil {
-		return fmt.Errorf("invalid json: %v, %v", err.Error(), string(data))
+		return errors.New("Invalid json: " + err.Error() + ", " + string(data))
 	}
 
 	return nil
@@ -176,7 +179,7 @@ func convertJsonToValue(data json.RawMessage, fv reflect.Value) error {
 
 func convertStringToValue(s string, fv reflect.Value, kind reflect.Kind) error {
 	if !fv.CanAddr() {
-		return fmt.Errorf("target can not addr")
+		return errors.New("Target can not addr")
 	}
 
 	if assignToField(s, fv) == nil {
@@ -207,7 +210,7 @@ func convertStringToValue(s string, fv reflect.Value, kind reflect.Kind) error {
 		case "0":
 			fv.SetBool(false)
 		default:
-			return fmt.Errorf("invalid bool: value=%v", s)
+			return errors.New("Invalid bool: value=" + s)
 		}
 		return nil
 	}
@@ -215,27 +218,27 @@ func convertStringToValue(s string, fv reflect.Value, kind reflect.Kind) error {
 	if reflect.Int <= kind && kind <= reflect.Int64 {
 		i, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid int: value=%v", s)
+			return errors.New("Invalid int: value=" + s)
 		}
 		fv.SetInt(i)
 
 	} else if reflect.Uint <= kind && kind <= reflect.Uint64 {
 		i, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid uint: value=%v", s)
+			return errors.New("Invalid uint: value=" + s)
 		}
 		fv.SetUint(i)
 
 	} else if reflect.Float32 == kind || kind == reflect.Float64 {
 		i, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			return fmt.Errorf("invalid float: value=%v", s)
+			return errors.New("Invalid float: value=" + s)
 		}
 		fv.SetFloat(i)
 
 	} else {
 		// type not support
-		return fmt.Errorf("type not support: value=%v", s)
+		return errors.New("Type not supported: value=" + s)
 	}
 	return nil
 }
