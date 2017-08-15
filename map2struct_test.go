@@ -71,7 +71,7 @@ func TestMap2Struct(t *testing.T) {
 	var argsJson struct {
 
 		// json
-		Book      *BookInfo   `map:"book"`
+		Book      BookInfo    `map:"book"`
 		Books     []*BookInfo `map:"books"`
 		BookNames []string    `map:"booknames"`
 	}
@@ -79,16 +79,40 @@ func TestMap2Struct(t *testing.T) {
 	var valsJson = map[string]interface{}{
 		// json
 		"book":      json.RawMessage(`{"id":2001, "name":"harry poter"}`),
-		"books":     json.RawMessage(`[{"id":3001, "name":"python programming"}, {"id":3002, "name":"cooking book"}]`),
-		"booknames": json.RawMessage(`["c programming","thinking in java"]`),
+		"books":     `[{"id":3001, "name":"python programming"}, {"id":3002, "name":"cooking book"}]`,
+		"booknames": `["c programming","thinking in java"]`,
 	}
 
 	checkJson := argsJson
-	checkJson.Book = &BookInfo{2001, "harry poter"}
+	checkJson.Book = BookInfo{2001, "harry poter"}
 	checkJson.Books = []*BookInfo{{3001, "python programming"}, {3002, "cooking book"}}
 	checkJson.BookNames = []string{"c programming", "thinking in java"}
 
 	checkMap2Struct(valsJson, &argsJson, checkJson, t)
+}
+
+func TestMap2StructExamples(t *testing.T) {
+	var e error
+	e = map2struct_example_1()
+	if e != nil {
+		t.Error("example1", e)
+	}
+	e = map2struct_example_2()
+	if e != nil {
+		t.Error("example2", e)
+	}
+	e = map2struct_example_3()
+	if e != nil {
+		t.Error("example3", e)
+	}
+	e = map2struct_example_4()
+	if e != nil {
+		t.Error("example4", e)
+	}
+	e = map2struct_example_5()
+	if e != nil {
+		t.Error("example5", e)
+	}
 }
 
 func checkMap2Struct(vals map[string]interface{}, args interface{}, check interface{}, t *testing.T) {
