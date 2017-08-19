@@ -6,7 +6,7 @@ import (
 )
 
 func Struct2Map(s interface{}) map[string]interface{} {
-	return Struct2MapTag(s, DefaultTag)
+	return Struct2MapTag(s, DefaultTag)   // TODO use different tag?
 }
 
 func Struct2MapTag(s interface{}, tagName string) map[string]interface{} {
@@ -97,6 +97,7 @@ func toString(fv reflect.Value) interface{} {
 	} else if kind == reflect.Float32 || kind == reflect.Float64 {
 		return strconv.FormatFloat(fv.Float(), 'f', 2, 64)
 	}
+	// TODO support more types
 	return nil
 }
 

@@ -4,9 +4,9 @@ This is a utility package of Golang provides convenient way to make conversion b
 
 > func **Map2Struct**(m maps[string]interface{}, s interface{}) (error)
 
-> func **Struct2Map**(s interface{}) map[string]interface{}
+Map2Struct() converts a map to struct. You can custom how the fields of the struct match the keys in the map in a very simple way. You can also specify a default value or report an error if the key is not found. 
 
-Map2Struct() converts a map into a struct. You can custom how the fields of the struct match the keys in the map in a very simple way. You can also specify a default value or report an error if the key is not found. 
+> func **Struct2Map**(s interface{}) map[string]interface{}
 
 Struct2Map(), on the contrary, converts a struct into a map. This function is less powerful, honestly, but it's also helpful in some situations. 
 
@@ -52,27 +52,27 @@ If the type of value is not the same as the type of field, Map2Struct will try i
 
 If a field is not found, it will stay unchanged by default. You are able to assign it a default value or report an error by giving the field a tag.
 
-Only public fields of the struct will be processed. It means **fields starting with lowercase will be ignored**.
+Only [public fields](https://golang.org/doc/effective_go.html#names) of the struct will be processed. It means **fields starting with lowercase will be ignored**.
 
-### Name Tag
+### Name Tags
 
 In most case, we want to custom another names for fields. For instance, if the field of struct is 'Name' but we want to match the key 'user_name' in the map. We can achieve this by giving the field a tag.
 
 ```golang
-s := struct {
+struct {
 	Id		int64	`map:"user_id"`		// search for "user_id"
 	Name		string	`map:"user_name"`	// search for "user_name"
-}{}
+}
 ```
 
 We use 'map' to indicate this tag is for our package. The following string within the quote is the customed name for the field which you want to search for in the map.
 
-Struct tag is a feature of Golang. You may probably see other well known struct tags like 'xml' or 'json' somewhere else. For more information please follow this [link](https://github.com/golang/go/wiki/Well-known-struct-tags).
+Struct tag is a feature of Golang. You may probably see other [well known struct tags](https://github.com/golang/go/wiki/Well-known-struct-tags) like 'xml' or 'json' somewhere else.
 
-### Ignored
+### Ignore Field
 
 ```golang
-s := struct {
+struct {
 	Website		string	`map:"-"`		// ignored
 }
 ```
@@ -84,11 +84,11 @@ Here is a special field tag "-" which indicate this field will be ignored by Map
 We are able to assign the field a default value if it's not found in the map. 
 
 ```golang
-s := struct {
+struct {
 	Id		int64	`map:"user_id,-1"`		// default value is -1
 	Name		string	`map:"user_name"`		// no default value
 	Blocked		bool	`map:"blocked,false"`		// default value is false
-}{}
+}
 ```
 
 Default value can be defined followed by the field tag, separated by a comma.
@@ -99,10 +99,10 @@ Since default value is defined as type of string, the function will try it best 
 
 ### Required
 
-If the we set "required" as default value, it shows this field is required from the map. Map2Struct will return an error if it is not found.
+If the we set "required" as default value, it indicates this field is required from the map. Map2Struct will return an error if it is not found.
 
 ```golang
-s := struct {
+struct {
 	Id	int64	`map:"user_id,required"`
 	Name	string	`map:"user_name,required"`
 }
@@ -138,11 +138,83 @@ s := struct {
 	Relatives	[]*group_info	`map:"relative_groups"`	// [{7, "FBI"}, {9, "CIA"}]
 }{}
 	
-return Map2Struct(m, &s)
+err := Map2Struct(m, &s)
 ```
 
 # Struct2Map
 
 > func **Struct2Map**(s interface{}) map[string]interface{}
 
+This function converts a struct to map. To use this function, import it first:
 
+```golang
+import Struct2Map from mapstruct
+```
+
+Here is an example:
+
+```golang
+s := struct {
+	Id		int64
+	Name		string
+}{
+	Id :		1001,
+	Name :		"tiaotiao",
+}
+
+m := Struct2Map(s)
+/*{
+	"Id" :		1001,
+	"Name":		"tiaotiao",
+}*/
+```
+
+Struct2Map will create and return a new map from the given struct. The keys of the map will be the name of fields. The values will be the value of fields. 
+
+Only [public fields](https://golang.org/doc/effective_go.html#names) will be processed. So **fields starting with lowercase will be ignored**.
+
+### Name Tags
+
+```golang
+struct {
+	Id		int64	`map:"user_id"`
+	Name		string	`map:"user_name"`
+}
+```
+
+We can give the field a tag to specicy another name to be used as the key.
+
+See Map2Struct above.
+
+### Ignore Field
+
+```golang
+struct {
+	Other		string `map:"-"`
+}
+```
+
+If we give the special tag "-" to a field, it will be ignored.
+
+### Omit Empty
+
+```golang
+struct {
+	Description		string	`map:"desc,omitempty"`
+}
+```
+
+If tag option is "omitempty", this field will not appear in the map if the value is empty.
+
+Empty values are 0, false, "", nil, empty array and empty map.
+
+### To String
+
+```golang
+struct {
+	Id		int64	`map:"id,string"`
+	Price 		float32	`map:"price,string"`
+}
+```
+
+If tag option is "string", this field will be convert to string type. Struct2Map will put the original value to the map if the conversion is failed.
