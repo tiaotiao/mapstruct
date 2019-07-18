@@ -10,6 +10,16 @@ import (
 
 const DefaultTag = "map"
 
+func I2StrcutIfOk(vals interface{}, dst interface{}) error {
+	mapData, ok := vals.(map[string]interface{})
+
+	if !ok {
+		return errors.New("type is not map[string]interface{}")
+	}
+
+	return Map2Struct(mapData, dst)
+}
+
 func Map2Struct(vals map[string]interface{}, dst interface{}) (err error) {
 	return Map2StructTag(vals, dst, DefaultTag)
 }
@@ -51,6 +61,10 @@ func Map2StructTag(vals map[string]interface{}, dst interface{}, tagName string)
 
 		tag := f.Tag.Get(tagName)
 		name, option := parseTag(tag)
+
+		if name == "_" {
+			continue
+		}
 
 		if name == "" {
 			// tag name is not set, use field name
